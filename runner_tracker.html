@@ -322,7 +322,12 @@ function loadAllWorkouts() {
   const stored = localStorage.getItem('all-workouts');
   if (stored) {
     try {
-      allWorkouts = JSON.parse(stored);
+      let parsed = JSON.parse(stored);
+      // Handle case where data was saved with double nesting
+      if (Array.isArray(parsed) && Array.isArray(parsed[0])) {
+        parsed = parsed[0];
+      }
+      allWorkouts = Array.isArray(parsed) ? parsed : [];
     } catch (e) {
       allWorkouts = [];
     }
