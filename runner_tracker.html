@@ -139,9 +139,6 @@ body {
   border-color: #378ADD;
   box-shadow: 0 0 0 3px rgba(55, 138, 221, 0.1);
 }
-.set-input input[type="number"] {
-  font-variant-numeric: tabular-nums;
-}
 .notes {
   margin-top: 1rem;
   padding-top: 1rem;
@@ -315,25 +312,27 @@ const EXERCISES = {
 };
 
 let currentDay = 1;
-let workoutData = {};
-
-function loadData() {
-  const saved = localStorage.getItem('runner-tracker');
-  if (saved) {
-    try {
-      workoutData = JSON.parse(saved);
-    } catch (e) {
-      workoutData = {};
-    }
-  }
-}
-
-function saveData() {
-  localStorage.setItem('runner-tracker', JSON.stringify(workoutData));
-}
+let allWorkouts = [];
 
 function getToday() {
   return new Date().toISOString().split('T')[0];
+}
+
+function loadAllWorkouts() {
+  const stored = localStorage.getItem('all-workouts');
+  if (stored) {
+    try {
+      allWorkouts = JSON.parse(stored);
+    } catch (e) {
+      allWorkouts = [];
+    }
+  }
+  console.log('Loaded workouts:', allWorkouts);
+}
+
+function saveAllWorkouts() {
+  localStorage.setItem('all-workouts', JSON.stringify(allWorkouts));
+  console.log('Saved workouts:', allWorkouts);
 }
 
 function renderExercises(day) {
@@ -380,20 +379,19 @@ function renderExercises(day) {
   `;
   container.appendChild(notesDiv);
 
-  // Load saved data
+  // Load saved data for today
   const today = getToday();
-  const key = `${today}-day${day}`;
-  if (workoutData[key]) {
-    Object.entries(workoutData[key]).forEach(([k, v]) => {
+  const todayWorkout = allWorkouts.find(w => w.date === today && w.day === day);
+  if (todayWorkout) {
+    Object.entries(todayWorkout.data).forEach(([k, v]) => {
       const el = document.getElementById(k);
       if (el) el.value = v;
     });
   }
 }
 
-function collectWorkoutData() {
+function saveWorkout() {
   const today = getToday();
-  const key = `${today}-day${currentDay}`;
   const data = {};
 
   const exercises = EXERCISES[currentDay];
@@ -413,14 +411,27 @@ function collectWorkoutData() {
     data[`day${currentDay}-notes`] = notesEl.value;
   }
 
+  // Remove existing entry for this day if it exists
+  allWorkouts = allWorkouts.filter(w => !(w.date === today && w.day === currentDay));
+  
+  // Add new entry if there's data
   if (Object.keys(data).length > 0) {
-    workoutData[key] = data;
-    saveData();
+    allWorkouts.push({
+      date: today,
+      day: currentDay,
+      data: data,
+      timestamp: new Date().toISOString()
+    });
   }
+
+  saveAllWorkouts();
+  console.log('Workout saved for day ' + currentDay);
 }
 
 function updateProgress() {
-  const sessions = Object.keys(workoutData).length;
+  loadAllWorkouts();
+  
+  const sessions = allWorkouts.length;
   const weeks = Math.floor(sessions / 3);
   
   document.getElementById('total-sessions').textContent = sessions;
@@ -429,23 +440,21 @@ function updateProgress() {
   const historyContainer = document.getElementById('history-container');
   historyContainer.innerHTML = '';
   
-  const sorted = Object.keys(workoutData).sort().reverse().slice(0, 8);
+  const sorted = allWorkouts.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
   
   if (sorted.length === 0) {
     historyContainer.innerHTML = '<div class="empty-state"><p>No workouts yet. Complete your first session!</p></div>';
     return;
   }
 
-  sorted.forEach(key => {
-    const [date, dayStr] = key.split('-');
+  sorted.forEach(workout => {
     const item = document.createElement('div');
     item.className = 'history-item';
-    const dateObj = new Date(date);
+    const dateObj = new Date(workout.date);
     const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-    const dayNum = dayStr.replace('day', 'Day ');
     item.innerHTML = `
       <div class="history-date">${dateStr}</div>
-      <div class="history-text">${dayNum} completed</div>
+      <div class="history-text">Day ${workout.day} completed</div>
     `;
     historyContainer.appendChild(item);
   });
@@ -479,7 +488,7 @@ document.querySelectorAll('.day-btn').forEach(btn => {
 
 // Save button
 document.querySelector('.save-btn').addEventListener('click', (e) => {
-  collectWorkoutData();
+  saveWorkout();
   const originalText = 'Save Workout';
   e.target.textContent = 'Saved ✓';
   setTimeout(() => {
@@ -488,7 +497,7 @@ document.querySelector('.save-btn').addEventListener('click', (e) => {
 });
 
 // Initialize
-loadData();
+loadAllWorkouts();
 renderExercises(1);
 </script>
 </body>
